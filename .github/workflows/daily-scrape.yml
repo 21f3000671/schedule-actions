@@ -1,0 +1,60 @@
+name: Daily IMDb Scraper
+
+on:
+  schedule:
+    # Run daily at 14:30 UTC (specific hours/minutes as required)
+    - cron: '30 14 * * *'
+  workflow_dispatch: # Allow manual triggering for testing
+
+jobs:
+  scrape-and-commit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Configure Git with email 21f3000671@ds.study.iitm.ac.in
+      run: |
+        git config --local user.email "21f3000671@ds.study.iitm.ac.in"
+        git config --local user.name "GitHub Actions Bot"
+        
+    - name: Run IMDb scraper
+      run: |
+        python scrape.py
+        
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Commit and push changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git add .
+        git commit -m "Daily IMDb data update - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Create empty commit if no data changes
+      if: steps.verify-changed-files.outputs.changed == 'false'
+      run: |
+        git commit --allow-empty -m "Daily workflow run - no data changes - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
